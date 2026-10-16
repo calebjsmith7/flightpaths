@@ -1,12 +1,11 @@
 import AppBar from "@mui/material/AppBar";
-import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Toolbar from "@mui/material/Toolbar";
 import Typography from "@mui/material/Typography";
-import { signOut } from "@/lib/actions";
 import ColorModeIconDropdown from "@/theme/ColorModeIconDropdown";
+import SignOutButton from "./SignOutButton";
 
-export default function AppHeader({ email }: { email: string }) {
+export default function AppHeader({ email }: { email: string | null }) {
   return (
     <AppBar position="static" color="transparent" elevation={0} sx={{ borderBottom: 1, borderColor: "divider" }}>
       <Toolbar sx={{ gap: 2 }}>
@@ -18,11 +17,7 @@ export default function AppHeader({ email }: { email: string }) {
             {email}
           </Typography>
           <ColorModeIconDropdown />
-          <form action={signOut}>
-            <Button type="submit" variant="outlined" size="small">
-              Sign out
-            </Button>
-          </form>
+          <SignOutButton />
         </Stack>
       </Toolbar>
     </AppBar>

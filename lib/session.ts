@@ -1,17 +1,21 @@
 import 'server-only';
 import { cookies } from 'next/headers';
+import { adminAuth } from './firebase/admin';
 
-// Placeholder session storage: an unsigned cookie holding the user's email.
-// Anyone can forge this, so swap it for a real provider (or a signed/encrypted
-// session such as iron-session) before shipping. Everything else talks to the
-// session through these three functions, so this is the only file that changes.
+// Sessions are Firebase session cookies: the browser signs in with the Firebase
+// SDK, hands us the ID token, and we exchange it for a long-lived, httpOnly
+// cookie that the Admin SDK can verify on every request.
 
 export type SessionData = {
-  email: string;
+  uid: string;
+  email: string | null;
 };
 
-const COOKIE_NAME = 'flightpaths_session';
-const DAY_IN_SECONDS = 60 * 60 * 24;
+const COOKIE_NAME = '__session';
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+// Firebase caps session cookies at 14 days.
+const REMEMBERED_SESSION_MS = 14 * DAY_IN_MS;
+const DEFAULT_SESSION_MS = DAY_IN_MS;
 
 export async function getSession(): Promise<SessionData | null> {
   const value = (await cookies()).get(COOKIE_NAME)?.value;
@@ -19,21 +23,24 @@ export async function getSession(): Promise<SessionData | null> {
     return null;
   }
   try {
-    const data = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
-    return typeof data?.email === 'string' ? { email: data.email } : null;
+    // checkRevoked: honour sign-outs and disabled accounts immediately.
+    const claims = await adminAuth.verifySessionCookie(value, true);
+    return { uid: claims.uid, email: claims.email ?? null };
   } catch {
     return null;
   }
 }
 
-export async function createSession(data: SessionData, { remember = false } = {}) {
-  (await cookies()).set(COOKIE_NAME, Buffer.from(JSON.stringify(data)).toString('base64url'), {
+export async function createSession(idToken: string, { remember = false } = {}) {
+  const expiresIn = remember ? REMEMBERED_SESSION_MS : DEFAULT_SESSION_MS;
+  const sessionCookie = await adminAuth.createSessionCookie(idToken, { expiresIn });
+  (await cookies()).set(COOKIE_NAME, sessionCookie, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
     // Without "remember me" this is a browser-session cookie.
-    maxAge: remember ? 30 * DAY_IN_SECONDS : undefined,
+    maxAge: remember ? expiresIn / 1000 : undefined,
   });
 }
 

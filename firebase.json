@@ -13,7 +13,11 @@
       ".git",
       "firebase-debug.log",
       "firebase-debug.*.log",
-      "functions"
+      "functions",
+      ".env*",
+      ".next",
+      "*.tsbuildinfo",
+      "*service-account*.json"
     ]
   },
   "auth": {
