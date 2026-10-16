@@ -58,14 +58,14 @@ export default function UploadCard() {
     : null;
 
   // Two columns on wide screens (planner and visualizer left, Flight Plan
-  // right); one column otherwise, with the Flight Plan between the two.
+  // right); one column otherwise, with the visualizer above the Flight Plan.
   return (
     <Box
       sx={{
         display: 'grid',
         gap: 3,
         gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 2fr) minmax(320px, 1fr)' },
-        gridTemplateAreas: { xs: '"planner" "plan" "viz"', lg: '"planner plan" "viz plan"' },
+        gridTemplateAreas: { xs: '"planner" "viz" "plan"', lg: '"planner plan" "viz plan"' },
         gridTemplateRows: { lg: 'auto 1fr' },
         alignItems: 'start',
       }}

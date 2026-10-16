@@ -1,10 +1,7 @@
 'use server';
 
-import { DEMO_TRAFFIC, SAMPLE_ROUTE } from './demo-routes';
-import { ensurePermanentRoute, reserveAndSaveRoute } from './routes';
-import { defaultElevationProvider } from './routing/elevation-google';
-import { normalizeRoute } from './routing/normalize';
-import { prepareFlight } from './routing/plan';
+import { SAMPLE_ROUTE } from './demo-routes';
+import { planAndSave } from './plan-service';
 import { AirspaceFullError, RouteParseError, type FlightPlan } from './routing/types';
 import { loadRouteScene, type RouteScene } from './scene';
 import { getSession } from './session';
@@ -48,20 +45,11 @@ async function plan(input: unknown, options: PlanRouteOptions, demo: boolean): P
   }
 
   try {
-    const elevation = defaultElevationProvider();
-    if (demo) {
-      // One at a time: some share cells, and parallel seeding would contend.
-      for (const traffic of DEMO_TRAFFIC) {
-        const prepared = await prepareFlight(normalizeRoute(traffic.route), { elevation });
-        await ensurePermanentRoute(traffic.id, prepared, traffic.layerAglFt);
-      }
-    }
-    const prepared = await prepareFlight(normalizeRoute(input), {
-      elevation,
+    const { routeId, plan } = await planAndSave(session.uid, input, {
       departureTime: departureTime ? new Date(departureTime) : undefined,
       cruiseSpeedMps: typeof cruiseSpeedMps === 'number' ? cruiseSpeedMps : undefined,
+      demo,
     });
-    const { routeId, plan } = await reserveAndSaveRoute(session.uid, prepared, { reserve: !demo, demo });
     return { ok: true, routeId, plan };
   } catch (error) {
     if (error instanceof RouteParseError || error instanceof AirspaceFullError || error instanceof RangeError) {

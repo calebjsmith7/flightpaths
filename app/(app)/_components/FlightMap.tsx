@@ -6,7 +6,7 @@ import { LineLayer, PathLayer, PolygonLayer, ScatterplotLayer } from '@deck.gl/l
 import type { PickingInfo } from '@deck.gl/core';
 import { cellToBoundary } from 'h3-js';
 import { setWorkerUrl, type Map as MapLibreMap } from 'maplibre-gl';
-import Map, { NavigationControl, useControl } from 'react-map-gl/maplibre';
+import Map, { NavigationControl, useControl, useMap } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { LAYER_SPACING_FT, LAYERS_FT } from '@/lib/routing/config';
 import type { RouteScene, SceneCell, ScenePath, ScenePoint } from '@/lib/scene';
@@ -239,7 +239,26 @@ function tooltip(info: PickingInfo) {
   };
 }
 
+// When React re-runs effects without remounting (e.g. <Activity> hiding and
+// showing the route), the Map destroys its MapLibre instance and builds a new
+// one asynchronously, but keeps handing children the destroyed map meanwhile.
+// An overlay attached to that map crashes on its missing style, and useControl
+// would never move it to the new map, so give each live map its own overlay.
+const mapKeys = new WeakMap<object, number>();
+let nextMapKey = 0;
+
 function DeckOverlay(props: MapboxOverlayProps) {
+  const map = useMap().current?.getMap();
+  if (!map?.style) {
+    return null;
+  }
+  if (!mapKeys.has(map)) {
+    mapKeys.set(map, nextMapKey++);
+  }
+  return <DeckOverlayControl key={mapKeys.get(map)} {...props} />;
+}
+
+function DeckOverlayControl(props: MapboxOverlayProps) {
   const overlay = useControl(() => new MapboxOverlay(props));
   overlay.setProps(props);
   return null;
