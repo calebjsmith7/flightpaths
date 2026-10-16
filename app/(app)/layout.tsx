@@ -2,7 +2,7 @@ import { Suspense, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 import { requireUser } from "@/lib/auth";
-import AppHeader from "./_components/AppHeader";
+import AppShell from "./_components/AppShell";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   // The session is read at request time, so it has to sit behind Suspense
@@ -16,14 +16,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
 
 async function AuthGate({ children }: { children: ReactNode }) {
   const user = await requireUser();
-  return (
-    <>
-      <AppHeader email={user.email} />
-      <Box component="main" sx={{ p: { xs: 2, sm: 4 } }}>
-        {children}
-      </Box>
-    </>
-  );
+  return <AppShell email={user.email}>{children}</AppShell>;
 }
 
 function FullPageSpinner() {
