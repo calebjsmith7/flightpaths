@@ -5,7 +5,7 @@ import { flatElevation } from './elevation';
 import { bearingDeg, densify, distanceMeters } from './geo';
 import { normalizeRoute } from './normalize';
 import { finalizeFlight, prepareFlight } from './plan';
-import { assignLayers, cellVisits, reservationsFor, type CellVisit, type Reservation } from './airspace';
+import { assignLayers, cellVisits, findConflicts, reservationsFor, type CellVisit, type Reservation } from './airspace';
 import { decodePolyline, encodePolyline } from './polyline';
 import { RouteParseError, type ElevationProvider, type LatLng, type TrackPoint } from './types';
 
@@ -375,6 +375,25 @@ describe('assignLayers', () => {
   it('ignores reservations that do not overlap in time', () => {
     const past = new Map([['c3', [{ routeId: 'old', layerAglFt: 150, startMs: -10 * 60_000, endMs: -2 * 60_000 }]]]);
     expect(assignLayers(makeVisits(10), NORTH, past)).toEqual(Array(10).fill(150));
+  });
+
+  it('reports traffic at or below the route, at overlapping times, most shared cells first', () => {
+    const visits = makeVisits(6);
+    const layers = [150, 150, 200, 200, 150, 150];
+    const traffic = new Map<string, Reservation[]>([
+      ['c2', [{ routeId: 'below', layerAglFt: 150, startMs: -Infinity, endMs: Infinity }]],
+      ['c3', [
+        { routeId: 'below', layerAglFt: 150, startMs: -Infinity, endMs: Infinity },
+        { routeId: 'above', layerAglFt: 250, startMs: -Infinity, endMs: Infinity },
+        { routeId: 'earlier', layerAglFt: 150, startMs: -10 * 60_000, endMs: -5 * 60_000 },
+      ]],
+      ['c4', [{ routeId: 'level', layerAglFt: 150, startMs: -Infinity, endMs: Infinity }]],
+    ]);
+    expect(findConflicts(visits, layers, traffic)).toEqual([
+      { routeId: 'below', cells: ['c2', 'c3'] },
+      { routeId: 'level', cells: ['c4'] },
+    ]);
+    expect(findConflicts(visits, layers, traffic, 'below')).toEqual([{ routeId: 'level', cells: ['c4'] }]);
   });
 
   it('reserves the layers crossed at takeoff, landing and each change', () => {

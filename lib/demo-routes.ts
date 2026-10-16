@@ -1,32 +1,79 @@
-// The demo pair. Both are made up.
+// The demo routes. All are made up.
 //
 // Route 1 (SAMPLE_ROUTE) is what the user runs: a drive across Austin
 // (downtown → I-35 N → Mueller), shaped like a Google Routes API computeRoutes
 // response so it exercises the same parsing as a real one. Distances and
 // durations are consistent with the paths.
 //
-// Route 2 (DEMO_TRAFFIC_ROUTE) is internal: an east–west crossing that cuts
-// I-35 at 30.2935 N, about halfway along route 1. It's held permanently at the
-// lowest layer, so route 1 has to climb over it there and come back down.
+// DEMO_TRAFFIC is internal: routes held permanently in the airspace grid, each
+// placed to show route 1 reacting to traffic in a different way. None starts or
+// ends near route 1's takeoff or landing, so route 1 always has a way through.
 
-export const DEMO_TRAFFIC_ROUTE = {
-  routes: [
-    {
-      polyline: {
-        geoJsonLinestring: {
-          type: 'LineString',
-          coordinates: [
-            [-97.74, 30.2935],
-            [-97.7325, 30.2935],
-            [-97.7255, 30.2935],
-            [-97.718, 30.2935],
-            [-97.71, 30.2935],
-          ],
-        },
-      },
-    },
-  ],
+const line = (coordinates: [number, number][]) => ({
+  routes: [{ polyline: { geoJsonLinestring: { type: 'LineString', coordinates } } }],
+});
+
+export type DemoTraffic = {
+  id: string;
+  route: unknown;
+  // Defaults to the lowest layer for the route's direction.
+  layerAglFt?: number;
 };
+
+export const DEMO_TRAFFIC: DemoTraffic[] = [
+  // Crosses I-35 about halfway along route 1: route 1 climbs over it.
+  {
+    id: 'demo-traffic',
+    route: line([
+      [-97.74, 30.2935],
+      [-97.7325, 30.2935],
+      [-97.7255, 30.2935],
+      [-97.718, 30.2935],
+      [-97.71, 30.2935],
+    ]),
+  },
+  // Crosses Congress Ave ~0.6 km after route 1 takes off: an early climb.
+  {
+    id: 'demo-traffic-congress',
+    route: line([
+      [-97.752, 30.268],
+      [-97.7434, 30.268],
+      [-97.736, 30.268],
+    ]),
+  },
+  // Just north of the I-35 crossing, one layer up. With the crossing at 150 ft,
+  // route 1 has to reach 250 ft to clear both.
+  {
+    id: 'demo-traffic-stacked',
+    layerAglFt: 200,
+    route: line([
+      [-97.74, 30.2955],
+      [-97.7247, 30.2955],
+      [-97.71, 30.2955],
+    ]),
+  },
+  // Rides I-35 northbound right where route 1 does, then carries on north:
+  // route 1 holds 200 ft for the whole shared stretch.
+  {
+    id: 'demo-traffic-i35',
+    route: line([
+      [-97.7228, 30.3],
+      [-97.7203, 30.306],
+      [-97.7184, 30.3105],
+      [-97.7165, 30.315],
+      [-97.7148, 30.3195],
+    ]),
+  },
+  // Crosses E 51st St shortly before route 1 lands: climb and descend late.
+  {
+    id: 'demo-traffic-51st',
+    route: line([
+      [-97.708, 30.302],
+      [-97.708, 30.3105],
+      [-97.708, 30.318],
+    ]),
+  },
+];
 
 export const SAMPLE_ROUTE =
 {

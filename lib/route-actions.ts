@@ -1,11 +1,12 @@
 'use server';
 
-import { DEMO_TRAFFIC_ROUTE, SAMPLE_ROUTE } from './demo-routes';
+import { DEMO_TRAFFIC, SAMPLE_ROUTE } from './demo-routes';
 import { ensurePermanentRoute, reserveAndSaveRoute } from './routes';
 import { defaultElevationProvider } from './routing/elevation-google';
 import { normalizeRoute } from './routing/normalize';
 import { prepareFlight } from './routing/plan';
 import { AirspaceFullError, RouteParseError, type FlightPlan } from './routing/types';
+import { loadRouteScene, type RouteScene } from './scene';
 import { getSession } from './session';
 
 export type PlanRouteResult = { ok: true; routeId: string; plan: FlightPlan } | { ok: false; error: string };
@@ -15,8 +16,6 @@ export type PlanRouteOptions = {
   departureTime?: string;
   cruiseSpeedMps?: number;
 };
-
-const DEMO_TRAFFIC_ID = 'demo-traffic';
 
 // Plans and saves a flight from a pasted or uploaded Google route response.
 export async function planRoute(routeJson: string, options: PlanRouteOptions = {}): Promise<PlanRouteResult> {
@@ -33,7 +32,7 @@ export async function planRoute(routeJson: string, options: PlanRouteOptions = {
 }
 
 // Runs the demo: route 1 (the sample) planned against the airspace, which
-// always contains route 2 (the demo traffic) crossing it halfway. Route 1 is
+// always contains the permanent demo traffic it has to work around. Route 1 is
 // saved but doesn't reserve airspace, so the demo can be run again and again.
 // The route comes from the server, not the client, so the dry run can't be
 // used to plan arbitrary routes without reserving them.
@@ -51,8 +50,11 @@ async function plan(input: unknown, options: PlanRouteOptions, demo: boolean): P
   try {
     const elevation = defaultElevationProvider();
     if (demo) {
-      const traffic = await prepareFlight(normalizeRoute(DEMO_TRAFFIC_ROUTE), { elevation });
-      await ensurePermanentRoute(DEMO_TRAFFIC_ID, traffic);
+      // One at a time: some share cells, and parallel seeding would contend.
+      for (const traffic of DEMO_TRAFFIC) {
+        const prepared = await prepareFlight(normalizeRoute(traffic.route), { elevation });
+        await ensurePermanentRoute(traffic.id, prepared, traffic.layerAglFt);
+      }
     }
     const prepared = await prepareFlight(normalizeRoute(input), {
       elevation,
@@ -67,5 +69,25 @@ async function plan(input: unknown, options: PlanRouteOptions, demo: boolean): P
     }
     console.error('Failed to plan route', error);
     return { ok: false, error: 'Something went wrong planning this route. Please try again.' };
+  }
+}
+
+export type RouteSceneResult = { ok: true; scene: RouteScene } | { ok: false; error: string };
+
+// The 3D visualizer's data for one of the user's routes.
+export async function getRouteScene(routeId: string): Promise<RouteSceneResult> {
+  const session = await getSession();
+  if (!session) {
+    return { ok: false, error: 'Your session has expired. Please sign in again.' };
+  }
+  if (typeof routeId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(routeId)) {
+    return { ok: false, error: 'Route not found.' };
+  }
+  try {
+    const scene = await loadRouteScene(session.uid, routeId);
+    return scene ? { ok: true, scene } : { ok: false, error: 'Route not found.' };
+  } catch (error) {
+    console.error('Failed to load route scene', error);
+    return { ok: false, error: 'Couldn’t load the visualizer. Please try again.' };
   }
 }

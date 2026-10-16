@@ -11,9 +11,29 @@ import DownloadIcon from '@mui/icons-material/DownloadRounded';
 import { MPS_PER_MPH } from '@/lib/routing/config';
 import type { FlightPlan } from '@/lib/routing/types';
 
-type Props = { input: string; demo: boolean; routeId: string; plan: FlightPlan };
+type Planned = { input: string; demo: boolean; routeId: string; plan: FlightPlan };
 
-export default function FlightResult({ input, demo, routeId, plan }: Props) {
+// The right-hand column on Home. Shows an empty state until a route is planned.
+export default function FlightResult({ planned }: { planned: Planned | null }) {
+  return (
+    <Card variant="outlined">
+      <CardContent>
+        {planned ? (
+          <PlanDetails {...planned} />
+        ) : (
+          <Stack sx={{ gap: 1 }}>
+            <Typography variant="h6">Flight Plan</Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              Plan a trip to see its altitudes, timing and layer changes here.
+            </Typography>
+          </Stack>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlanDetails({ input, demo, routeId, plan }: Planned) {
   const minutes = (Date.parse(plan.arriveAt) - Date.parse(plan.departAt)) / 60_000;
   const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
@@ -45,68 +65,57 @@ export default function FlightResult({ input, demo, routeId, plan }: Props) {
   };
 
   return (
-    <Card variant="outlined">
-      <CardContent>
-        <Stack sx={{ gap: 2 }}>
-          <Stack direction="row" sx={{ alignItems: 'center', gap: 2 }}>
-            <Box sx={{ flexGrow: 1 }}>
-              <Typography variant="h6">Flight planned</Typography>
-              <Typography variant="body2" sx={{ color: 'text.secondary', fontFamily: 'monospace' }}>
-                {routeId}
-              </Typography>
-            </Box>
-            <Button variant="outlined" startIcon={<DownloadIcon />} onClick={download}>
-              Download JSON
-            </Button>
-          </Stack>
+    <Stack sx={{ gap: 2 }}>
+      <div>
+        <Typography variant="h6">Flight Plan</Typography>
+        <Typography variant="body2" sx={{ color: 'text.secondary', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+          {routeId}
+        </Typography>
+      </div>
 
-          {demo && (
-            <Alert severity="info">
-              Demo run: this route crosses permanent demo traffic flying east–west at 150 ft over I-35, so it climbs
-              over it there. Demo runs are saved but don’t reserve airspace.
-            </Alert>
-          )}
+      {demo && (
+        <Alert severity="info">
+          Demo run: this route works around five permanent demo routes, so it climbs (and stacks up to 250 ft) where
+          they cross or share its path. Demo runs are saved but don’t reserve airspace.
+        </Alert>
+      )}
 
-          {plan.elevationSource === 'none' && (
-            <Alert severity="warning">
-              No terrain data was available, so ground level was treated as sea level. MSL altitudes won’t be accurate.
-            </Alert>
-          )}
+      {plan.elevationSource === 'none' && (
+        <Alert severity="warning">
+          No terrain data was available, so ground level was treated as sea level. MSL altitudes won’t be accurate.
+        </Alert>
+      )}
 
-          <Box
-            sx={{
-              display: 'grid',
-              gap: 2,
-              gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)' },
-            }}
-          >
-            {stats.map((s) => (
-              <div key={s.label}>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-                  {s.label}
-                </Typography>
-                <Typography variant="h6" component="p">
-                  {s.value}
-                </Typography>
-              </div>
-            ))}
-          </Box>
+      <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+        {stats.map((s) => (
+          <div key={s.label}>
+            <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              {s.label}
+            </Typography>
+            <Typography variant="h6" component="p">
+              {s.value}
+            </Typography>
+          </div>
+        ))}
+      </Box>
 
-          {plan.segments.length > 1 && (
-            <div>
-              <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
-                Layers along the route
-              </Typography>
-              {plan.segments.map((s) => (
-                <Typography key={s.fromIndex} variant="body2">
-                  {(s.startDistanceMeters / 1000).toFixed(2)}–{(s.endDistanceMeters / 1000).toFixed(2)} km at{' '}
-                  {s.altitudeAglFt} ft
-                </Typography>
-              ))}
-            </div>
-          )}
-        </Stack>
-      </CardContent>
-    </Card>
+      {plan.segments.length > 1 && (
+        <div>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 0.5 }}>
+            Layers along the route
+          </Typography>
+          {plan.segments.map((s) => (
+            <Typography key={s.fromIndex} variant="body2">
+              {(s.startDistanceMeters / 1000).toFixed(2)}–{(s.endDistanceMeters / 1000).toFixed(2)} km at{' '}
+              {s.altitudeAglFt} ft
+            </Typography>
+          ))}
+        </div>
+      )}
+
+      <Button variant="outlined" fullWidth startIcon={<DownloadIcon />} onClick={download}>
+        Download JSON
+      </Button>
+    </Stack>
   );
 }

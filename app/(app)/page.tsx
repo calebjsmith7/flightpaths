@@ -4,7 +4,7 @@ import UploadCard from "./_components/UploadCard";
 
 export default function Home() {
   return (
-    <Stack sx={{ gap: 3, maxWidth: 900 }}>
+    <Stack sx={{ gap: 3, maxWidth: 1600 }}>
       <Typography component="h1" variant="h4">
         Home
       </Typography>

@@ -214,3 +214,30 @@ export function reservationsFor(
       }));
   });
 }
+
+export type Conflict = { routeId: string; cells: string[] };
+
+// Other routes this one had to fly over or climb past: anything holding a layer
+// at or below this route's layer, in a cell it passes through, at an
+// overlapping time. Ordered by how many cells they share, most first.
+export function findConflicts(
+  visits: CellVisit[],
+  layers: number[],
+  reservationsByCell: ReadonlyMap<string, Reservation[]>,
+  ownRouteId?: string,
+): Conflict[] {
+  const byRoute = new Map<string, Set<string>>();
+  visits.forEach((visit, i) => {
+    for (const r of reservationsByCell.get(visit.cell) ?? []) {
+      const overlaps = r.startMs < visit.endMs && visit.startMs < r.endMs;
+      if (r.routeId !== ownRouteId && overlaps && r.layerAglFt <= layers[i]) {
+        const cells = byRoute.get(r.routeId) ?? new Set<string>();
+        cells.add(visit.cell);
+        byRoute.set(r.routeId, cells);
+      }
+    }
+  });
+  return [...byRoute]
+    .map(([routeId, cells]) => ({ routeId, cells: [...cells] }))
+    .sort((a, b) => b.cells.length - a.cells.length);
+}

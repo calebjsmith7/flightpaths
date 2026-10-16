@@ -1,13 +1,16 @@
 import 'server-only';
 import { FieldValue, Timestamp, type DocumentReference, type Transaction } from 'firebase-admin/firestore';
 import { adminDb } from './firebase/admin';
-import { assignLayers, cellVisits, reservationsFor, type Reservation } from './routing/airspace';
+import { assignLayers, cellVisits, findConflicts, reservationsFor, type Reservation } from './routing/airspace';
 import { layersForHeading } from './routing/config';
 import { finalizeFlight, type PreparedFlight } from './routing/plan';
 import { AirspaceFullError, type FlightPlan } from './routing/types';
 
 // How many route ids a profile's recentRoutes keeps, newest first.
 const RECENT_ROUTES_LIMIT = 10;
+
+// How many conflicting routes a route doc records, for the visualizer.
+const CONFLICTS_LIMIT = 20;
 
 // End of a permanent reservation: the last millisecond Firestore Timestamps
 // can represent, so the TTL policy never removes it.
@@ -57,6 +60,8 @@ export async function reserveAndSaveRoute(
       throw new AirspaceFullError('There’s no free path through the airspace along this route. Try a later departure.');
     }
     const plan = finalizeFlight(prepared, visits, layers);
+    // Read before this route's own reservations are added to `live`.
+    const conflicts = findConflicts(visits, layers, live).slice(0, CONFLICTS_LIMIT);
 
     if (reserve) {
       writeReservations(tx, cells, cellRefs, live, reservationsFor(visits, layers, routeRef.id));
@@ -70,6 +75,7 @@ export async function reserveAndSaveRoute(
       uid,
       demo,
       reserved: reserve,
+      conflicts,
       cellVisits: visits.length,
       createdAt: FieldValue.serverTimestamp(),
     });
@@ -81,18 +87,22 @@ export async function reserveAndSaveRoute(
   });
 }
 
-// Seeds a route that holds the lowest layer for its direction in every cell it
-// passes through, at all times. Used for the demo's fixed traffic. Does nothing
-// if routes/{routeId} already exists, so it's safe to call on every demo run.
-export async function ensurePermanentRoute(routeId: string, prepared: PreparedFlight): Promise<void> {
+// Seeds a route that holds one layer (by default the lowest for its direction)
+// in every cell it passes through, at all times. Used for the demo's fixed
+// traffic. Does nothing if routes/{routeId} already exists, so it's safe to call
+// on every demo run.
+export async function ensurePermanentRoute(
+  routeId: string,
+  prepared: PreparedFlight,
+  layerAglFt = layersForHeading(prepared.headingDeg)[0],
+): Promise<void> {
   const routeRef = adminDb.collection('routes').doc(routeId);
   if ((await routeRef.get()).exists) {
     return;
   }
 
   const visits = cellVisits(prepared.track).map((v) => ({ ...v, startMs: 0, endMs: PERMANENT_END_MS }));
-  const layer = layersForHeading(prepared.headingDeg)[0];
-  const layers = visits.map(() => layer);
+  const layers = visits.map(() => layerAglFt);
   const cells = [...new Set(visits.map((v) => v.cell))];
   const cellRefs = cells.map((cell) => adminDb.collection('airspace').doc(cell));
 
